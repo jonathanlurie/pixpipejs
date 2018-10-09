@@ -9,7 +9,7 @@
 
 //import pngjs from 'pngjs'; // ependency issues
 import upng from 'upng-js'; // does not halt when wrong format + additional line!
-import { Decoder } from '../core/Decoder.js';
+import { Filter } from '../core/Filter.js';
 import { Image2D } from '../core/Image2D.js';
 
 
@@ -21,10 +21,9 @@ import { Image2D } from '../core/Image2D.js';
 * **Usage**
 * - [examples/fileToPng.html](../examples/fileToPng.html)
 */
-class PngDecoder extends Decoder {
+class PngDecoder extends Filter {
   constructor() {
     super();
-    this.setMetadata("targetType", Image2D.name);
     this.addInputValidator(0, ArrayBuffer);
   }
 
@@ -46,11 +45,71 @@ class PngDecoder extends Decoder {
     // kindof manual work, but it's 2x faster than using upng.toRGBA8()
     try{
       var pngData = upng.decode( inputBuffer );
+      /*
       var ncpp = Math.round(pngData.data.length / (pngData.width*pngData.height) );
       var outputImage = new Image2D();
       var croppedArray = new pngData.data.constructor( pngData.data.buffer, 0, pngData.width * pngData.height * ncpp);
       outputImage.setData(croppedArray, pngData.width, pngData.height, ncpp);
       this._output[ 0 ] = outputImage;
+      */
+
+      var depthToType = {
+        8: Uint8Array,
+        16: Uint16Array,
+        32: Float32Array
+      }
+
+      var ctypeToNcpp = {
+        6: 4,
+        2: 3,
+        3: 1,
+        4: 2,
+        0: 1
+      }
+
+      var rawData = pngData.data.buffer
+      var dataTypedArray = depthToType[pngData.depth]
+      var ncpp = ctypeToNcpp[pngData.ctype]
+      var croppedArray = new dataTypedArray( rawData, 0, pngData.width * pngData.height * ncpp);
+
+      // swqpping bytes as in
+      // https://stackoverflow.com/questions/5320439/how-do-i-swap-endian-ness-byte-order-of-a-variable-in-javascript
+      function swap16(val) {
+        return ((val & 0xFF) << 8)
+               | ((val >> 8) & 0xFF);
+      }
+
+      function swap32(val) {
+        return ((val & 0xFF) << 24)
+               | ((val & 0xFF00) << 8)
+               | ((val >> 8) & 0xFF00)
+               | ((val >> 24) & 0xFF);
+      }
+
+
+      var t0 = performance.now();
+
+      if (pngData.depth === 16) {
+        for (var i=0; i<croppedArray.length; i++) {
+          // flip bytes
+          croppedArray[i] = swap16(croppedArray[i])
+        }
+      }
+
+      var t1 = performance.now();
+      console.log((t1 - t0) + " ms.")
+
+      if (pngData.depth === 32) {
+        for (var i=0; i<croppedArray.length; i++) {
+          // flip bytes
+          croppedArray[i] = swap32(croppedArray[i])
+        }
+      }
+
+      var outputImage = new Image2D();
+      outputImage.setData(croppedArray, pngData.width, pngData.height, ncpp);
+      this._output[ 0 ] = outputImage;
+
     }catch(e){
       console.warn(e);
     }

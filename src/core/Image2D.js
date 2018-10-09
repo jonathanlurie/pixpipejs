@@ -315,7 +315,7 @@ class Image2D extends PixpipeContainer{
       console.warn("No data, cannot make a copy of it.");
       return;
     }
-    
+
     return new Float32Array( this._data );
   }
 
@@ -361,7 +361,7 @@ class Image2D extends PixpipeContainer{
 
     for(var i=0; i<this._data.length; i++){
       min = Math.min(min, this._data[i]);
-      max = Math.max(min, this._data[i]);
+      max = Math.max(max, this._data[i]);
       total += this._data[i];
     }
 
